@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+ <!DOCTYPE html>
 <html lang="id">
 <head>
 <meta charset="UTF-8" />
@@ -303,7 +303,10 @@
 <body>
 
 <div class="card">
-  <span class="tag">TESTNET ONLY · TIDAK ADA NILAI UANG</span>
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+    <span class="tag">TESTNET ONLY · TIDAK ADA NILAI UANG</span>
+    <a href="leaderboard.html" id="leaderboardLink" style="font-family:Arial, sans-serif; font-size:11px; font-weight:bold; color:var(--ink); text-decoration:none; border-bottom:2px solid var(--pink); white-space:nowrap;">📊 Leaderboard →</a>
+  </div>
 
   <div class="hero">
     <svg class="mascot" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
@@ -402,6 +405,8 @@
     </div>
 
     <button class="btn-main" id="mintBtn">Klaim Jatahmu Sekarang</button>
+
+    <button class="hidden" id="shareBtn" style="width:100%; margin-top:10px; background:#1DA1F2; color:#fff;">Bagikan ke X 🐦</button>
   </div>
 
   <p class="fine-print">Token ini dibuat untuk keperluan belajar/eksperimen di jaringan testnet.<br/>Tidak diperdagangkan, tidak ada nilai finansial nyata.</p>
@@ -425,8 +430,12 @@ const ABI = [
   "function totalSupply() view returns (uint256)",
   "function balanceOf(address) view returns (uint256)",
   "function mintedBps() view returns (uint256)",
-  "function MAX_SUPPLY() view returns (uint256)"
+  "function MAX_SUPPLY() view returns (uint256)",
+  "function MINT_AMOUNT() view returns (uint256)"
 ];
+
+let contractAddress = "";
+let myRank = null;
 
 let provider, signer, contract, userAddress;
 const $ = (id) => document.getElementById(id);
@@ -519,19 +528,22 @@ async function loadContract() {
     return;
   }
   clearBanner();
+  contractAddress = address;
   contract = new ethers.Contract(address, ABI, signer);
   $("dashboard").classList.remove("hidden");
+  $("leaderboardLink").href = "leaderboard.html?ca=" + address;
   await refreshStats();
 }
 
 async function refreshStats() {
   if (!contract) return;
   try {
-    const [minted, balance, bps, claimed] = await Promise.all([
+    const [minted, balance, bps, claimed, mintAmount] = await Promise.all([
       contract.totalSupply(),
       contract.balanceOf(userAddress),
       contract.mintedBps(),
-      contract.hasMinted(userAddress)
+      contract.hasMinted(userAddress),
+      contract.MINT_AMOUNT()
     ]);
     $("mintedStat").textContent = fmt(minted);
     $("balanceStat").textContent = fmt(balance);
@@ -539,17 +551,30 @@ async function refreshStats() {
     $("progressPct").textContent = pct + "%";
     $("progressFill").style.width = Math.min(pct, 100) + "%";
 
+    myRank = minted.div(mintAmount).toNumber();
+
     const btn = $("mintBtn");
+    const shareBtn = $("shareBtn");
     if (claimed) {
       btn.disabled = true;
       btn.textContent = "Kamu Sudah Klaim ✓";
+      shareBtn.classList.remove("hidden");
+      setupShareButton();
     } else {
       btn.disabled = false;
       btn.textContent = "Klaim Jatahmu Sekarang";
+      shareBtn.classList.add("hidden");
     }
   } catch (err) {
     showBanner("Gagal memuat data kontrak. Cek alamat & jaringan.", "error");
   }
+}
+
+function setupShareButton() {
+  const pageUrl = window.location.href.split("?")[0] + (contractAddress ? ("?ca=" + contractAddress) : "");
+  const text = `Aku baru aja klaim $RHDOG, token fair-launch nomor #${myRank} di Robinhood Chain Testnet! 🐶🚀 No presale, no team allocation. Klaim jatahmu juga sebelum kehabisan:`;
+  const tweetUrl = "https://twitter.com/intent/tweet?text=" + encodeURIComponent(text) + "&url=" + encodeURIComponent(pageUrl);
+  $("shareBtn").onclick = () => window.open(tweetUrl, "_blank");
 }
 
 async function mint() {
@@ -573,6 +598,13 @@ async function mint() {
 $("connectBtn").addEventListener("click", connectWallet);
 $("loadContractBtn").addEventListener("click", loadContract);
 $("mintBtn").addEventListener("click", mint);
+
+const urlParams = new URLSearchParams(window.location.search);
+const caFromUrl = urlParams.get("ca");
+if (caFromUrl && ethers.utils.isAddress(caFromUrl)) {
+  $("contractInput").value = caFromUrl;
+  $("leaderboardLink").href = "leaderboard.html?ca=" + caFromUrl;
+}
 </script>
 
 </body>
