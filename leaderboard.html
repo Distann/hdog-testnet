@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>$RHDOG — Leaderboard & Holder</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #F5D400;
+    --ink: #14110F;
+    --panel: #FFFDF7;
+    --pink: #FF3E96;
+    --pink-dark: #D4227A;
+    --green: #1F9D55;
+    --line: #14110F;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 44px 16px;
+    min-height: 100vh;
+    background-color: var(--bg);
+    background-image: radial-gradient(circle, rgba(20,17,15,0.16) 1.6px, transparent 1.6px);
+    background-size: 16px 16px;
+    font-family: "Arial Black", Arial, "Helvetica Neue", sans-serif;
+    color: var(--ink);
+    display: flex;
+    justify-content: center;
+  }
+  .card {
+    width: 100%;
+    max-width: 560px;
+    background: var(--panel);
+    border: 4px solid var(--line);
+    border-radius: 14px;
+    box-shadow: 8px 8px 0 var(--line);
+    padding: 30px 28px 26px;
+    transform: rotate(-0.4deg);
+  }
+  .top-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .back-link {
+    font-family: Arial, sans-serif; font-size: 11px; font-weight: bold;
+    color: var(--ink); text-decoration: none; border-bottom: 2px solid var(--pink);
+  }
+  h1 { font-size: 30px; margin: 0 0 4px; letter-spacing: -0.5px; }
+  h1 span { color: var(--pink); -webkit-text-stroke: 1.5px var(--ink); }
+  .tagline {
+    font-family: Georgia, serif; font-style: italic; font-weight: normal;
+    font-size: 14px; color: #47423b; margin: 0 0 20px; line-height: 1.4;
+  }
+  .overview {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 22px;
+  }
+  .ov-box { border: 3px solid var(--line); border-radius: 10px; padding: 10px 12px; background: #fff; }
+  .ov-label { font-family: Arial, sans-serif; font-size: 10px; color: #6b655a; }
+  .ov-value { font-family: "SFMono-Regular", Consolas, monospace; font-size: 17px; font-weight: bold; }
+
+  .section-title {
+    font-family: Arial, sans-serif; font-size: 12px; letter-spacing: 0.5px; font-weight: bold;
+    margin: 0 0 10px; display: flex; align-items: center; gap: 6px;
+  }
+  .section-title::before { content: "🐾"; }
+
+  .setup {
+    display: flex; gap: 8px; margin-bottom: 22px;
+  }
+  .setup input {
+    flex: 1; font-family: "SFMono-Regular", Consolas, monospace; font-size: 12.5px;
+    padding: 9px 11px; border: 3px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink);
+  }
+  .setup button {
+    font-family: Arial, sans-serif; font-weight: bold; cursor: pointer; border: 3px solid var(--line);
+    border-radius: 8px; padding: 9px 14px; font-size: 12.5px; background: var(--pink); color: #fff;
+  }
+
+  table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+  th, td {
+    font-family: "SFMono-Regular", Consolas, monospace; font-size: 12px;
+    text-align: left; padding: 8px 6px; border-bottom: 1px dashed #d8cfa8;
+  }
+  th { font-family: Arial, sans-serif; font-size: 10px; color: #6b655a; font-weight: bold; }
+  td.rank { font-weight: bold; }
+  tr.me { background: #FFF3B0; }
+  .bar-track { background: #eee6c9; border-radius: 6px; height: 8px; overflow: hidden; margin-top: 4px; width: 100%; }
+  .bar-fill { background: var(--pink); height: 100%; }
+
+  .empty-state {
+    text-align: center; padding: 24px 10px; color: #7d7669; font-style: italic;
+    font-family: Georgia, serif; font-size: 13.5px;
+  }
+  .loading { text-align: center; padding: 20px; font-family: Arial, sans-serif; font-size: 12px; color: #6b655a; }
+
+  .msg-banner {
+    font-family: Arial, sans-serif; font-size: 12.5px; font-weight: bold; padding: 9px 12px;
+    border-radius: 8px; margin-bottom: 16px; border: 3px solid var(--line); display: none;
+  }
+  .msg-banner.error { background: #ffd9d9; display: block; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="top-row">
+    <a class="back-link" href="index.html">← Kembali ke Mint Page</a>
+  </div>
+
+  <h1>$<span>RHDOG</span> Leaderboard</h1>
+  <p class="tagline">Urutan siapa klaim duluan, dan distribusi holder — semua data langsung dari blockchain, gak ada yang disembunyikan.</p>
+
+  <div class="msg-banner" id="banner"></div>
+
+  <div class="setup">
+    <input type="text" id="contractInput" placeholder="Alamat kontrak $RHDOG (0x...)" />
+    <button id="loadBtn">Muat</button>
+  </div>
+
+  <div id="content" class="hidden">
+    <div class="overview">
+      <div class="ov-box">
+        <div class="ov-label">TOTAL HOLDER</div>
+        <div class="ov-value" id="totalHolders">—</div>
+      </div>
+      <div class="ov-box">
+        <div class="ov-label">TOTAL TERKLAIM</div>
+        <div class="ov-value" id="totalClaimed">—</div>
+      </div>
+    </div>
+
+    <div class="section-title">URUTAN KLAIM (LEADERBOARD)</div>
+    <div id="leaderboardWrap"><div class="loading">Memuat data…</div></div>
+
+    <div class="section-title">DISTRIBUSI HOLDER TERBESAR</div>
+    <div id="holdersWrap"><div class="loading">Memuat data…</div></div>
+  </div>
+</div>
+
+<script>
+const RPC_URL = "https://rpc.testnet.chain.robinhood.com/rpc";
+const ABI = [
+  "function totalSupply() view returns (uint256)",
+  "function MAX_SUPPLY() view returns (uint256)",
+  "event FairMint(address indexed claimer, uint256 amount)",
+  "event Transfer(address indexed from, address indexed to, uint256 value)"
+];
+
+const $ = (id) => document.getElementById(id);
+const banner = $("banner");
+function showBanner(text) { banner.textContent = text; banner.className = "msg-banner error"; }
+function shortAddr(a) { return a.slice(0, 6) + "…" + a.slice(-4); }
+function fmt(bnWei) {
+  const num = parseFloat(ethers.utils.formatUnits(bnWei, 18));
+  return num.toLocaleString("id-ID", { maximumFractionDigits: 0 });
+}
+
+async function loadData() {
+  const address = $("contractInput").value.trim();
+  if (!ethers.utils.isAddress(address)) {
+    showBanner("Alamat kontrak tidak valid.");
+    return;
+  }
+  banner.className = "msg-banner";
+  $("content").classList.remove("hidden");
+  $("leaderboardWrap").innerHTML = '<div class="loading">Memuat data…</div>';
+  $("holdersWrap").innerHTML = '<div class="loading">Memuat data…</div>';
+
+  try {
+    const provider = new ethers.providers.JsonRpcProvider(RPC_URL);
+    const contract = new ethers.Contract(address, ABI, provider);
+
+    const [totalSupply, maxSupply] = await Promise.all([
+      contract.totalSupply(),
+      contract.MAX_SUPPLY()
+    ]);
+    $("totalClaimed").textContent = fmt(totalSupply);
+
+    // Leaderboard: urutan klaim dari event FairMint
+    const claimEvents = await contract.queryFilter(contract.filters.FairMint(), 0, "latest");
+    claimEvents.sort((a, b) => a.blockNumber - b.blockNumber || a.logIndex - b.logIndex);
+    renderLeaderboard(claimEvents);
+
+    // Distribusi holder: hitung saldo dari semua event Transfer
+    const transferEvents = await contract.queryFilter(contract.filters.Transfer(), 0, "latest");
+    const balances = {};
+    for (const ev of transferEvents) {
+      const { from, to, value } = ev.args;
+      if (from !== ethers.constants.AddressZero) {
+        balances[from] = (balances[from] || ethers.BigNumber.from(0)).sub(value);
+      }
+      if (to !== ethers.constants.AddressZero) {
+        balances[to] = (balances[to] || ethers.BigNumber.from(0)).add(value);
+      }
+    }
+    const holders = Object.entries(balances)
+      .filter(([, bal]) => bal.gt(0))
+      .sort((a, b) => (b[1].gt(a[1]) ? 1 : -1));
+
+    $("totalHolders").textContent = holders.length.toLocaleString("id-ID");
+    renderHolders(holders, maxSupply);
+  } catch (err) {
+    showBanner("Gagal memuat data: " + err.message);
+  }
+}
+
+function renderLeaderboard(events) {
+  const wrap = $("leaderboardWrap");
+  if (events.length === 0) {
+    wrap.innerHTML = '<div class="empty-state">Belum ada yang klaim.</div>';
+    return;
+  }
+  const rows = events.slice(0, 25).map((ev, i) => `
+    <tr>
+      <td class="rank">#${i + 1}</td>
+      <td>${shortAddr(ev.args.claimer)}</td>
+      <td>${fmt(ev.args.amount)}</td>
+      <td>Block ${ev.blockNumber}</td>
+    </tr>
+  `).join("");
+  wrap.innerHTML = `
+    <table>
+      <thead><tr><th>Urutan</th><th>Wallet</th><th>Jumlah</th><th>Bukti</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    ${events.length > 25 ? `<div class="loading">Menampilkan 25 klaim pertama dari total ${events.length}.</div>` : ""}
+  `;
+}
+
+function renderHolders(holders, maxSupply) {
+  const wrap = $("holdersWrap");
+  if (holders.length === 0) {
+    wrap.innerHTML = '<div class="empty-state">Belum ada holder.</div>';
+    return;
+  }
+  const rows = holders.slice(0, 20).map(([addr, bal]) => {
+    const pct = parseFloat(bal.mul(10000).div(maxSupply).toString()) / 100;
+    return `
+      <tr>
+        <td>${shortAddr(addr)}</td>
+        <td>${fmt(bal)}</td>
+        <td style="width:35%;">
+          ${pct.toFixed(3)}%
+          <div class="bar-track"><div class="bar-fill" style="width:${Math.min(pct * 20, 100)}%;"></div></div>
+        </td>
+      </tr>
+    `;
+  }).join("");
+  wrap.innerHTML = `
+    <table>
+      <thead><tr><th>Wallet</th><th>Saldo</th><th>% Max Supply</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    ${holders.length > 20 ? `<div class="loading">Menampilkan 20 holder terbesar dari total ${holders.length}.</div>` : ""}
+  `;
+}
+
+$("loadBtn").addEventListener("click", loadData);
+
+const urlParams = new URLSearchParams(window.location.search);
+const caFromUrl = urlParams.get("ca");
+if (caFromUrl && ethers.utils.isAddress(caFromUrl)) {
+  $("contractInput").value = caFromUrl;
+  loadData();
+}
+</script>
+
+</body>
+</html>
